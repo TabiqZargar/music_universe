@@ -1,0 +1,9 @@
+[
+  {
+    "someField": "this is not a streaming history export",
+    "value": 1
+  },
+  {
+    "otherField": true
+  }
+]

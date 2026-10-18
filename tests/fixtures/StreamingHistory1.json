@@ -1,0 +1,60 @@
+[
+  {
+    "endTime": "2025-06-01 08:12",
+    "artistName": "Aurora Vale",
+    "trackName": "Golden Static",
+    "albumName": "First Light",
+    "msPlayed": 214003
+  },
+  {
+    "endTime": "2025-06-01 08:16",
+    "artistName": "Aurora Vale",
+    "trackName": "Paper Harbor",
+    "albumName": "First Light",
+    "msPlayed": 188450
+  },
+  {
+    "endTime": "2025-06-02 19:40",
+    "artistName": "Neon Divide",
+    "trackName": "Midnight Signal",
+    "albumName": "Night Circuit",
+    "msPlayed": 245110
+  },
+  {
+    "endTime": "2025-06-02 19:45",
+    "artistName": "Neon Divide, Vector Plaza",
+    "trackName": "Shared Orbit",
+    "albumName": "Night Circuit",
+    "msPlayed": 199999
+  },
+  {
+    "endTime": "2025-06-05 22:01",
+    "artistName": "Kofi Adjei",
+    "trackName": "Accra Evening",
+    "albumName": "Tape Room",
+    "msPlayed": 301220
+  },
+  {
+    "endTime": "2025-06-05 22:07",
+    "artistName": "Kofi Adjei, The Accra Tapes",
+    "trackName": "Market Day",
+    "albumName": "Tape Room",
+    "msPlayed": 274500,
+    "ip_addr": "203.0.113.9",
+    "user_agent_decrypted": "should-never-be-persisted"
+  },
+  {
+    "endTime": "2025-06-10 07:30",
+    "artistName": "Still Harbor",
+    "trackName": "Longform Drift",
+    "albumName": "Weather Systems",
+    "msPlayed": 421000
+  },
+  {
+    "endTime": "2025-06-10 07:37",
+    "artistName": "Wren Calloway",
+    "trackName": "Paper Lanterns at Dusk",
+    "albumName": "Orchard Year",
+    "msPlayed": 165300
+  }
+]
