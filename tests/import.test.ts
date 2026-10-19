@@ -143,6 +143,12 @@ describe("parsing rules", () => {
     expect(result.records.some((r) => r.msPlayed === 0 && r.trackName === "Two Artists")).toBe(true);
   });
 
+  it("flags zero-duration plays without dropping them", () => {
+    const result = parseHistoryJson(STREAMING, { fileName: "s.json", batchId: "b" });
+    expect(result.preview.zeroDurationPlays).toBe(1);
+    expect(result.preview.totalListeningMs).toBeGreaterThan(0);
+  });
+
   it("never persists sensitive export fields", () => {
     const result = parseHistoryJson(EXTENDED, { fileName: "e.json", batchId: "b" });
     const serialized = JSON.stringify(result.records);
@@ -193,6 +199,41 @@ describe("duplicate detection, merge and replace", () => {
     const existing = { records: [makeRecord({ trackKey: "old" })], batches: [] };
     const replaced = applyImport(parsed, "replace", existing);
     expect(replaced.records.some((r) => r.trackKey === "old")).toBe(false);
+  });
+
+  it("re-importing the same file adds no records and no duplicate batch", () => {
+    const { parsed } = previewImportSelection([{ name: "a.json", text: STREAMING }]);
+    const first = applyImport(parsed, "merge", { records: [], batches: [] });
+    expect(first.importedRecordCount).toBeGreaterThan(0);
+    expect(first.batches).toHaveLength(1);
+
+    const second = applyImport(parsed, "merge", {
+      records: first.records,
+      batches: first.batches,
+    });
+    expect(second.importedRecordCount).toBe(0);
+    expect(second.batches).toHaveLength(1);
+    expect(second.records).toHaveLength(first.records.length);
+  });
+
+  it("imports several files at once and stays idempotent across them", () => {
+    const other = JSON.stringify([
+      { endTime: "2021-01-01 00:00:00", artistName: "Ida Farrow", trackName: "New Cut", msPlayed: 1000 },
+    ]);
+    const { parsed } = previewImportSelection([
+      { name: "StreamingHistory0.json", text: STREAMING },
+      { name: "StreamingHistory1.json", text: other },
+    ]);
+    const applied = applyImport(parsed, "merge", { records: [], batches: [] });
+    expect(applied.batches).toHaveLength(2);
+    expect(applied.importedRecordCount).toBe(applied.records.length);
+
+    const again = applyImport(parsed, "merge", {
+      records: applied.records,
+      batches: applied.batches,
+    });
+    expect(again.importedRecordCount).toBe(0);
+    expect(again.batches).toHaveLength(2);
   });
 
   it("dedupeRecords collapses identical signatures only", () => {

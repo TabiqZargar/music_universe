@@ -232,6 +232,11 @@ export function DetailPanel({
                       popularity {node.meta.apiPopularity}/100
                     </span>
                   )}
+                  {!hasMeasuredListening && node.meta.apiRank !== undefined && (
+                    <span className="ml-2 text-slate-500">
+                      rank #{node.meta.apiRank} on Spotify
+                    </span>
+                  )}
                 </p>
               </Section>
               <Section title="Activity over time">
@@ -245,9 +250,19 @@ export function DetailPanel({
               <Section title="Listening">
                 <p className="text-slate-100" data-testid="detail-listening">
                   {listeningText(node.listeningMs)}
-                  {node.meta.rankByListening !== undefined && (
+                  {hasMeasuredListening && node.meta.rankByListening !== undefined && (
                     <span className="ml-2 text-slate-500">
                       #{node.meta.rankByListening} by listening
+                    </span>
+                  )}
+                  {!hasMeasuredListening && node.meta.apiRank !== undefined && (
+                    <span className="ml-2 text-slate-500">
+                      rank #{node.meta.apiRank} on Spotify
+                    </span>
+                  )}
+                  {!hasMeasuredListening && node.meta.apiPopularity !== undefined && (
+                    <span className="ml-2 text-slate-500">
+                      popularity {node.meta.apiPopularity}/100
                     </span>
                   )}
                 </p>

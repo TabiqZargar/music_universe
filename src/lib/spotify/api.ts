@@ -52,6 +52,10 @@ export async function spotifyGet<T>(path: string): Promise<T> {
     if (response.status === 401) {
       throw new SpotifyApiError("token_expired", 401);
     }
+    if (response.status === 403) {
+      // Dev-mode apps and scopes not granted by the user surface as 403.
+      throw new SpotifyApiError("forbidden", 403);
+    }
     if (!response.ok) {
       throw new SpotifyApiError(`spotify_http_${response.status}`, response.status);
     }
@@ -95,10 +99,14 @@ interface Paging<T> {
   items: T[];
   next: string | null;
   total?: number;
+  cursors?: { after?: string | null; before?: string | null };
 }
 
+export const TOP_TIME_RANGES = ["short_term", "medium_term", "long_term"] as const;
+export type TopTimeRange = (typeof TOP_TIME_RANGES)[number];
+
 export interface TopItemsOptions {
-  timeRange?: "short_term" | "medium_term" | "long_term";
+  timeRange?: TopTimeRange;
   maxPages?: number;
 }
 
@@ -139,26 +147,74 @@ export function fetchTopTracks(options: TopItemsOptions = {}): Promise<SpotifyTr
   );
 }
 
+/**
+ * Merge the same entity across the short/medium/long term rankings. The first
+ * appearance wins (short term first), so list order encodes a combined affinity
+ * rank. Genres (when Spotify still returns them) are unioned.
+ */
+export function mergeTopArtists(lists: SpotifyArtistObject[][]): SpotifyArtistObject[] {
+  const byId = new Map<string, SpotifyArtistObject>();
+  const order: string[] = [];
+  for (const list of lists) {
+    for (const artist of list) {
+      const existing = byId.get(artist.id);
+      if (!existing) {
+        byId.set(artist.id, { ...artist, genres: [...(artist.genres ?? [])] });
+        order.push(artist.id);
+      } else {
+        existing.genres = [...new Set([...(existing.genres ?? []), ...(artist.genres ?? [])])];
+        existing.popularity ??= artist.popularity;
+      }
+    }
+  }
+  return order.map((id) => byId.get(id)!);
+}
+
+export function mergeTopTracks(lists: SpotifyTrackObject[][]): SpotifyTrackObject[] {
+  const byId = new Map<string, SpotifyTrackObject>();
+  const order: string[] = [];
+  for (const list of lists) {
+    for (const track of list) {
+      if (byId.has(track.id)) continue;
+      byId.set(track.id, track);
+      order.push(track.id);
+    }
+  }
+  return order.map((id) => byId.get(id)!);
+}
+
 export interface RecentlyPlayedItem {
   played_at: string;
   track: SpotifyTrackObject;
 }
 
-/** Uses the `before` cursor; limited to 10 pages (500 plays). */
+/**
+ * Walk the recently-played pages using the response `cursors.before` value
+ * (more precise than recomputing from the oldest timestamp), falling back to
+ * the oldest `played_at` only when Spotify omits it. Limited to 10 pages.
+ */
 export async function fetchRecentlyPlayed(maxPages = 10): Promise<RecentlyPlayedItem[]> {
   const collected: RecentlyPlayedItem[] = [];
   let before: string | null = null;
   for (let page = 0; page < maxPages; page++) {
-    const qs = before
-      ? `limit=50&before=${before}`
-      : "limit=50";
+    const qs = before ? `limit=50&before=${before}` : "limit=50";
     const batch: Paging<RecentlyPlayedItem> = await spotifyGet<Paging<RecentlyPlayedItem>>(
       `/me/player/recently-played?${qs}`,
     );
     collected.push(...batch.items);
-    const oldest = batch.items[batch.items.length - 1];
-    if (!batch.next || !batch.items.length || !oldest) break;
-    before = new Date(oldest.played_at).getTime().toString();
+    if (!batch.next || batch.items.length === 0) break;
+
+    const cursor = batch.cursors?.before;
+    let nextBefore: string | null =
+      typeof cursor === "string" && /^\d+$/.test(cursor) ? cursor : null;
+    if (!nextBefore) {
+      const oldest = batch.items[batch.items.length - 1];
+      const ts = oldest ? Date.parse(oldest.played_at) : Number.NaN;
+      nextBefore = Number.isNaN(ts) ? null : String(ts);
+    }
+    // Stop rather than loop forever if the cursor does not advance.
+    if (!nextBefore || nextBefore === before) break;
+    before = nextBefore;
   }
   return collected;
 }

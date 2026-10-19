@@ -117,28 +117,32 @@ export function applyImport(
   mode: ImportMode,
   existing: { records: ListeningRecord[]; batches: ImportBatchInfo[] },
 ): { records: ListeningRecord[]; batches: ImportBatchInfo[]; importedRecordCount: number } {
-  const imported = parsed
-    .filter((p) => p.ok && p.records.length > 0)
-    .flatMap((p) => p.records);
+  const parsedFiles = parsed.filter((p) => p.ok && p.records.length > 0);
 
-  const newBatches: ImportBatchInfo[] = parsed
-    .filter((p) => p.ok && p.records.length > 0)
-    .map((p) => ({
+  const keptRecords = mode === "replace" ? [] : existing.records;
+  const keptBatches = mode === "replace" ? [] : existing.batches;
+
+  // Re-importing content already stored (same fileHash) adds no batch and no
+  // records — dedupeRecords below also collapses any overlapping plays.
+  const knownHashes = new Set(keptBatches.map((b) => b.fileHash));
+  const newBatches: ImportBatchInfo[] = [];
+  for (const p of parsedFiles) {
+    if (knownHashes.has(p.fileHash)) continue;
+    knownHashes.add(p.fileHash);
+    newBatches.push({
       id: p.records[0].importBatchId,
       fileName: p.preview.fileName,
       fileHash: p.fileHash,
       importedAtMs: Date.now(),
       recordCount: p.records.length,
-    }));
+    });
+  }
 
-  const keptRecords =
-    mode === "replace" ? [] : existing.records;
-  const keptBatches = mode === "replace" ? [] : existing.batches;
-
-  const records = dedupeRecords([...keptRecords, ...imported]);
+  const records = dedupeRecords([...keptRecords, ...parsedFiles.flatMap((p) => p.records)]);
   return {
     records,
     batches: [...keptBatches, ...newBatches],
-    importedRecordCount: imported.length,
+    // Honestly report only records that actually extended the dataset.
+    importedRecordCount: Math.max(0, records.length - keptRecords.length),
   };
 }

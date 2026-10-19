@@ -10,28 +10,32 @@ import type { RecentlyPlayedItem, SpotifyArtistObject, SpotifyTrackObject } from
  * Spotify top/recent results are NOT a listening ledger: they carry no
  * measured play durations. Signal tracks/artists are used for sizing fallbacks
  * and genre enrichment only — never added to listening-time totals.
+ *
+ * `rank` is the 1-based position in the merged short/medium/long-term ranking.
+ * It is the sizing fallback when Spotify omits `popularity` (removed for
+ * dev-mode apps in the Feb 2026 migration).
  */
 export function apiTopToSignals(
   topArtists: SpotifyArtistObject[],
   topTracks: SpotifyTrackObject[],
 ): { apiArtists: ApiSignalArtist[]; apiTracks: ApiSignalTrack[] } {
-  const apiArtists: ApiSignalArtist[] = topArtists.map((a) => ({
+  const apiArtists: ApiSignalArtist[] = topArtists.map((a, index) => ({
     id: a.id,
     name: a.name,
     genres: [...(a.genres ?? [])],
-    popularity: a.popularity ?? 0,
-    followers: a.followers?.total ?? 0,
+    rank: index + 1,
+    ...(typeof a.popularity === "number" ? { popularity: a.popularity } : {}),
   }));
-  const apiTracks: ApiSignalTrack[] = topTracks
-    .filter((t) => t.id && t.name)
-    .map((t) => ({
-      id: t.id,
-      name: t.name,
-      artistNames: (t.artists ?? []).map((a) => a.name).filter(Boolean),
-      albumName: t.album?.name ?? null,
-      artworkUrl: t.album?.images?.[0]?.url ?? null,
-      popularity: t.popularity ?? 0,
-    }));
+  const rankedTracks = topTracks.filter((t) => t.id && t.name);
+  const apiTracks: ApiSignalTrack[] = rankedTracks.map((t, index) => ({
+    id: t.id,
+    name: t.name,
+    artistNames: (t.artists ?? []).map((a) => a.name).filter(Boolean),
+    albumName: t.album?.name ?? null,
+    artworkUrl: t.album?.images?.[0]?.url ?? null,
+    rank: index + 1,
+    ...(typeof t.popularity === "number" ? { popularity: t.popularity } : {}),
+  }));
   return { apiArtists, apiTracks };
 }
 

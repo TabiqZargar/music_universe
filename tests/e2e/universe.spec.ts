@@ -221,6 +221,57 @@ test("Spotify API mode sizes by rankings and never reports measured totals", asy
   await expect(page.getByRole("heading", { name: "Demo Universe" })).toBeVisible();
 });
 
+test("combined mode enriches imports without double-counting listening time", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await importFixture(page, GOOD_FIXTURE);
+  await page.getByTestId("import-merge").click();
+  await page.getByTestId("import-done").click();
+  await expect(page.getByRole("heading", { name: "My Listening History" })).toBeVisible();
+  const importedTotal = (await page.getByTestId("stat-total").textContent()) ?? "";
+
+  await context.addInitScript(
+    ([key, token]) => {
+      window.sessionStorage.setItem(
+        key,
+        JSON.stringify({
+          accessToken: token,
+          refreshToken: null,
+          expiresAtMs: Date.now() + 3_600_000,
+          scopes: ["user-read-private", "user-top-read", "user-read-recently-played"],
+        }),
+      );
+    },
+    [TOKENS_KEY, "e2e-token"] as const,
+  );
+  const paging = (items: unknown[]) => ({ items, next: null, total: items.length });
+  await page.route("**/api.spotify.com/v1/me/top/artists**", (route) =>
+    route.fulfill({ json: paging([{ id: "artist-1", name: "Wren Calloway", genres: ["mockwave"] }]) }),
+  );
+  await page.route("**/api.spotify.com/v1/me/top/tracks**", (route) =>
+    route.fulfill({ json: paging([{ id: "track-1", name: "Mock", artists: [{ name: "Wren Calloway" }] }]) }),
+  );
+  await page.route("**/api.spotify.com/v1/me/player/recently-played**", (route) =>
+    route.fulfill({ json: paging([]) }),
+  );
+  await page.route("**/api.spotify.com/v1/me", (route) =>
+    route.fulfill({ json: { id: "e2e-user", display_name: "E2E Listener", images: [] } }),
+  );
+  await page.route("**/api/spotify/token", (route) =>
+    route.fulfill({ json: { access_token: "e2e-token", token_type: "Bearer", expires_in: 3600 } }),
+  );
+
+  await page.reload();
+  await expect(page.getByTestId("source-badge")).toHaveText(/imported \+ spotify api/i, {
+    timeout: 15_000,
+  });
+  // Measured listening comes only from the import, never from API rankings.
+  await expect(page.getByTestId("stat-total")).not.toHaveText(/unavailable/i);
+  await expect(page.getByTestId("stat-total")).toHaveText(importedTotal.trim());
+});
+
 test("connection panel explains the unconfigured API mode", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("open-connection").click();

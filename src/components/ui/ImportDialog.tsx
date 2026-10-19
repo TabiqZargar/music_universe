@@ -217,6 +217,8 @@ export function ImportDialog({
                       {p.skippedPodcasts > 0 && ` · ${p.skippedPodcasts} podcasts skipped`}
                       {p.malformedEntries > 0 &&
                         ` · ${p.malformedEntries} malformed entries flagged`}
+                      {p.zeroDurationPlays > 0 &&
+                        ` · ${p.zeroDurationPlays} zero-duration plays`}
                     </p>
                   </div>
                 );
@@ -301,8 +303,10 @@ export function ImportDialog({
               </p>
               <p className="mt-1 text-emerald-100/80">
                 {formatCount(importSession.summary.totalRecords)} total records now ·{" "}
+                {formatDuration(importSession.summary.measuredListeningMs)} measured ·{" "}
                 {importSession.summary.skippedPodcasts} podcasts skipped ·{" "}
                 {importSession.summary.malformedEntries} malformed flagged ·{" "}
+                {importSession.summary.zeroDurationPlays} zero-duration plays ·{" "}
                 {importSession.summary.duplicateFiles} duplicate file
                 {importSession.summary.duplicateFiles === 1 ? "" : "s"} skipped.
               </p>

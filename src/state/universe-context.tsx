@@ -45,7 +45,10 @@ import {
   fetchRecentlyPlayed,
   fetchTopArtists,
   fetchTopTracks,
+  mergeTopArtists,
+  mergeTopTracks,
   SpotifyApiError,
+  TOP_TIME_RANGES,
 } from "@/lib/spotify/api";
 import {
   apiTopToSignals,
@@ -73,8 +76,10 @@ export interface ImportSession {
     importedRecordCount: number;
     skippedPodcasts: number;
     malformedEntries: number;
+    zeroDurationPlays: number;
     duplicateFiles: number;
     totalRecords: number;
+    measuredListeningMs: number;
   } | null;
 }
 
@@ -273,20 +278,22 @@ export function UniverseProvider({ children }: { children: ReactNode }) {
       }
       setConnection((prev) => ({ ...prev, status: "connecting", error: null }));
       const profile = await fetchProfile();
-      const [topArtists, topTracks] = await Promise.all([
-        fetchTopArtists(),
-        fetchTopTracks(),
+      const hasImported = datasetKindRef.current === "imported";
+      // Fetch every available top time range; merging gives broader coverage
+      // (and a combined affinity rank for sizing when popularity is absent).
+      const [artistLists, trackLists, recentItems] = await Promise.all([
+        Promise.all(TOP_TIME_RANGES.map((timeRange) => fetchTopArtists({ timeRange, maxPages: 2 }))),
+        Promise.all(TOP_TIME_RANGES.map((timeRange) => fetchTopTracks({ timeRange, maxPages: 2 }))),
+        hasImported
+          ? Promise.resolve([] as Awaited<ReturnType<typeof fetchRecentlyPlayed>>)
+          : fetchRecentlyPlayed().catch(() => [] as Awaited<ReturnType<typeof fetchRecentlyPlayed>>),
       ]);
+      const topArtists = mergeTopArtists(artistLists);
+      const topTracks = mergeTopTracks(trackLists);
       const signals = apiTopToSignals(topArtists, topTracks);
 
-      const hasImported = datasetKindRef.current === "imported";
       if (!hasImported) {
-        let apiRecords: ListeningRecord[] = [];
-        try {
-          apiRecords = recentlyPlayedToRecords(await fetchRecentlyPlayed());
-        } catch {
-          apiRecords = [];
-        }
+        const apiRecords: ListeningRecord[] = recentlyPlayedToRecords(recentItems);
         setDataset({
           kind: "api",
           records: apiRecords,
@@ -314,9 +321,11 @@ export function UniverseProvider({ children }: { children: ReactNode }) {
         error instanceof SpotifyApiError
           ? error.status === 401
             ? "Session expired — please connect again."
-            : error.rateLimited
-              ? "Spotify rate limit reached — try again shortly."
-              : "Spotify request failed — check your connection."
+            : error.status === 403
+              ? "Spotify denied this request — check the app's development-mode users and granted scopes."
+              : error.rateLimited
+                ? "Spotify rate limit reached — try again shortly."
+                : "Spotify request failed — check your connection."
           : "Spotify connection could not be verified.";
       setConnection((prev) => ({ ...prev, status: "error", error: message }));
       if (error instanceof SpotifyApiError && error.status === 401) {
@@ -528,8 +537,10 @@ export function UniverseProvider({ children }: { children: ReactNode }) {
           importedRecordCount: applied.importedRecordCount,
           skippedPodcasts: importSession.parsed.reduce((s, p) => s + p.preview.skippedPodcasts, 0),
           malformedEntries: importSession.parsed.reduce((s, p) => s + p.preview.malformedEntries, 0),
+          zeroDurationPlays: importSession.parsed.reduce((s, p) => s + p.preview.zeroDurationPlays, 0),
           duplicateFiles: importSession.parsed.filter((p) => p.preview.duplicateOfFile !== null).length,
           totalRecords: applied.records.length,
+          measuredListeningMs: importSession.parsed.reduce((s, p) => s + p.preview.totalListeningMs, 0),
         },
       });
     },

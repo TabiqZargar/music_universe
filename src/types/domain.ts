@@ -89,6 +89,8 @@ export interface ImportPreview {
   recordCount: number;
   skippedPodcasts: number;
   malformedEntries: number;
+  /** Kept, but carries no measured duration (e.g. instant skips, 0 ms). */
+  zeroDurationPlays: number;
   uniqueTracks: number;
   totalListeningMs: number;
   periodStartMs: number | null;
@@ -150,6 +152,8 @@ export interface GraphNodeMeta {
   artistCount?: number;
   genres?: string[];
   apiPopularity?: number;
+  /** 1-based Spotify top-ranking position (API mode, no measured data). */
+  apiRank?: number;
 }
 
 export interface GraphEdge {

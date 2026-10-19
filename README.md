@@ -12,11 +12,16 @@ Tailwind CSS — fully client-side, no backend, no telemetry.
 - **Import your history** — Spotify Extended Streaming History
   (`StreamingHistory*.json`, `endsong_*.json`) or a ZIP containing them.
   Parsed, validated and stored on-device (IndexedDB). Merge or replace,
-  duplicate-file detection, podcast skipping, malformed-entry flagging.
+  duplicate-file detection (re-importing the same export is idempotent — no
+  records or batches are duplicated), podcast skipping, malformed-entry
+  flagging, and zero-duration plays counted but flagged rather than silently
+  dropped.
 - **Optional Spotify API mode** — PKCE OAuth (tokens in `sessionStorage`
-  only), top artists/tracks and recent plays. API rankings size nodes but
-  never inflate listening totals; with no imported history the stats bar
-  reports listening as *unavailable* instead of fabricating it.
+  only), top artists/tracks across **all three time ranges** and recent plays.
+  API rankings size nodes (by popularity when Spotify returns it, otherwise by
+  ranking position) but never inflate listening totals; with no imported
+  history the stats bar reports listening as *unavailable* instead of
+  fabricating it.
 - **Explore** — orbit/zoom camera, click-to-focus, search, entity/genre/min-time
   filters, timeframe windows (4 weeks / 6 months / all history, anchored to the
   data end), detail panel with per-month timelines, top lists, keyboard
@@ -33,6 +38,27 @@ Optional Spotify API mode — copy `.env.example` to `.env.local` and set
 `NEXT_PUBLIC_SPOTIFY_CLIENT_ID` (plus `SPOTIFY_CLIENT_SECRET` if you want
 server-side exchange). Add `http://localhost:3000/callback` as a redirect URI
 in your Spotify app.
+
+### Spotify API prerequisites & limitations
+
+Spotify's Feb 2026 rules shape what API mode can show:
+
+- **Development mode** (the default for new apps) requires the app owner to
+  have Premium and allows at most 5 authorized users, plus per-user rate
+  limits. Users not added to the app get a `403`, which the connection panel
+  surfaces explicitly.
+- `popularity`, `followers` and `genres` were **removed or deprecated** on
+  Track/Artist objects, and the `/me` response no longer returns
+  `country`/`email`/`product`. API mode therefore sizes nodes by the merged
+  ranking position and falls back to *Unclassified* genres when Spotify
+  returns none — it never invents values.
+- `GET /me/player/recently-played` is a shallow window (the last ~50 plays,
+  paginated via `cursors.before`), not a full ledger — import your Extended
+  Streaming History for real listening totals. Example individual responses,
+  batch endpoints and search beyond 10 results are not used.
+- Requested scopes stay minimal: `user-read-private`, `user-top-read`,
+  `user-read-recently-played`. Redirect URIs must be HTTPS in production;
+  `http://localhost` / loopback is allowed for local development.
 
 ## Scripts
 

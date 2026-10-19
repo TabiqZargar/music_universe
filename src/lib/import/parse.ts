@@ -84,6 +84,7 @@ function isVideo(entry: Record<string, unknown>): boolean {
 interface NormalizeCounts {
   skippedPodcasts: number;
   malformed: number;
+  zeroDurationPlays: number;
 }
 
 function entryToRecord(
@@ -129,6 +130,8 @@ function entryToRecord(
     counts.malformed += 1;
     return null;
   }
+  // Kept as a measured play, but flagged: contributes no listening duration.
+  if (msPlayed === 0) counts.zeroDurationPlays += 1;
 
   const tsValue = entry.ts ?? entry.endTime ?? entry.startTime ?? null;
   const timestamp = parseTimestamp(tsValue);
@@ -212,7 +215,7 @@ export function parseHistoryJson(
   }
 
   const batchId = options.batchId ?? crypto.randomUUID();
-  const counts: NormalizeCounts = { skippedPodcasts: 0, malformed: 0 };
+  const counts: NormalizeCounts = { skippedPodcasts: 0, malformed: 0, zeroDurationPlays: 0 };
   const records: ListeningRecord[] = [];
   for (const entry of entries) {
     const parsed = validateEntry(format, entry);
@@ -243,6 +246,7 @@ export function parseHistoryJson(
       recordCount: records.length,
       skippedPodcasts: counts.skippedPodcasts,
       malformedEntries: counts.malformed,
+      zeroDurationPlays: counts.zeroDurationPlays,
       uniqueTracks: uniqueKeys.size,
       totalListeningMs: records.reduce((sum, r) => sum + r.msPlayed, 0),
       periodStartMs: timestamps.length ? Math.min(...timestamps) : null,
@@ -266,6 +270,7 @@ function emptyPreview(fileName: string): ImportPreview {
     recordCount: 0,
     skippedPodcasts: 0,
     malformedEntries: 0,
+    zeroDurationPlays: 0,
     uniqueTracks: 0,
     totalListeningMs: 0,
     periodStartMs: null,

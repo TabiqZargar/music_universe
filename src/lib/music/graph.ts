@@ -19,8 +19,10 @@ export interface ApiSignalArtist {
   id: string;
   name: string;
   genres: string[];
-  popularity: number;
-  followers: number;
+  /** 1-based position in the merged Spotify top ranking (sizing fallback). */
+  rank: number;
+  /** Present only when Spotify still returns it (removed for dev-mode apps). */
+  popularity?: number;
 }
 
 export interface ApiSignalTrack {
@@ -29,7 +31,8 @@ export interface ApiSignalTrack {
   artistNames: string[];
   albumName: string | null;
   artworkUrl: string | null;
-  popularity: number;
+  rank: number;
+  popularity?: number;
 }
 
 export interface BuildGraphInput {
@@ -76,8 +79,19 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
   const maxTrackMs = Math.max(0, ...allTracks.map((t) => t.listeningMs));
   const maxAlbumMs = Math.max(0, ...allAlbums.map((a) => a.listeningMs));
   const maxGenreMs = Math.max(0, ...genres.map((g) => g.listeningMs));
-  const maxApiArtistPop = Math.max(1, ...(input.apiArtists ?? []).map((a) => a.popularity));
-  const maxApiTrackPop = Math.max(1, ...(input.apiTracks ?? []).map((t) => t.popularity));
+  const apiArtists = input.apiArtists ?? [];
+  const apiTracks = input.apiTracks ?? [];
+  // Spotify removed `popularity` for dev-mode apps (Feb 2026 migration); fall
+  // back to ranking position so API-only nodes still vary in size. When
+  // popularity is present it wins, keeping extended-quota apps unchanged.
+  const artistByPopularity = apiArtists.some((a) => (a.popularity ?? 0) > 0);
+  const trackByPopularity = apiTracks.some((t) => (t.popularity ?? 0) > 0);
+  const artistScore = (a: ApiSignalArtist) =>
+    artistByPopularity ? a.popularity ?? 0 : Math.max(1, apiArtists.length - a.rank + 1);
+  const trackScore = (t: ApiSignalTrack) =>
+    trackByPopularity ? t.popularity ?? 0 : Math.max(1, apiTracks.length - t.rank + 1);
+  const maxApiArtistScore = Math.max(1, ...apiArtists.map(artistScore));
+  const maxApiTrackScore = Math.max(1, ...apiTracks.map(trackScore));
 
   const hasMeasured = source.kind !== "spotify-api";
 
@@ -157,8 +171,8 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
       genreNode.position[1] + ySpread,
       genreNode.position[2] + Math.sin(golden) * radial,
     ];
-    const radiusValue = hasMeasured ? artist.listeningMs : 0;
-    const apiPop = input.apiArtists?.find((a) => a.name === artist.name)?.popularity ?? 0;
+    const apiSignal = apiArtists.find((a) => a.name === artist.name);
+    const apiScore = apiSignal ? artistScore(apiSignal) : 0;
     nodes.push({
       id: artist.id,
       kind: "artist",
@@ -166,7 +180,7 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
       listeningMs: artist.listeningMs,
       normRadius: hasMeasured
         ? normalizedRadius(artist.listeningMs, maxArtistMs)
-        : normalizedRadius(apiPop, maxApiArtistPop),
+        : normalizedRadius(apiScore, maxApiArtistScore),
       position,
       parentIds: genreIds,
       childIds: [...artist.albumIds, ...artist.trackIds.filter((t) => !allAlbums.some((al) => al.trackIds.includes(t)))],
@@ -177,7 +191,10 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
         spotifyId: artist.spotifyId,
         genres: [...artist.genres].sort(),
         rankByListening: 0,
-        ...(radiusValue === 0 && apiPop > 0 ? { apiPopularity: apiPop } : {}),
+        ...(apiSignal && !hasMeasured ? { apiRank: apiSignal.rank } : {}),
+        ...(apiSignal && !hasMeasured && (apiSignal.popularity ?? 0) > 0
+          ? { apiPopularity: apiSignal.popularity }
+          : {}),
       },
     });
     for (const gid of genreIds) {
@@ -214,10 +231,13 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
       artistNode.position[1] + y,
       artistNode.position[2] + Math.sin(angle) * dist,
     ];
-    const apiPop =
-      input.apiTracks?.find(
-        (t) => t.albumName === album.name && t.artistNames[0] === artistNode.label,
-      )?.popularity ?? 0;
+    const albumSignal = apiTracks
+      .filter((t) => t.albumName === album.name && t.artistNames[0] === artistNode.label)
+      .reduce<ApiSignalTrack | null>(
+        (best, t) => (best === null || t.rank < best.rank ? t : best),
+        null,
+      );
+    const apiScore = albumSignal ? trackScore(albumSignal) : 0;
     const node: GraphNode = {
       id: album.id,
       kind: "album",
@@ -225,7 +245,7 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
       listeningMs: album.listeningMs,
       normRadius: hasMeasured
         ? normalizedRadius(album.listeningMs, maxAlbumMs)
-        : normalizedRadius(apiPop, maxApiTrackPop),
+        : normalizedRadius(apiScore, maxApiTrackScore),
       position,
       parentIds: album.artistIds,
       childIds: [...album.trackIds],
@@ -269,8 +289,8 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
       parent.position[1] + y,
       parent.position[2] + Math.sin(angle) * dist,
     ];
-    const apiPop =
-      input.apiTracks?.find((t) => t.id === track.spotifyId)?.popularity ?? 0;
+    const trackSignal = apiTracks.find((t) => t.id === track.spotifyId);
+    const apiScore = trackSignal ? trackScore(trackSignal) : 0;
     const node: GraphNode = {
       id: track.id,
       kind: "track",
@@ -278,7 +298,7 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
       listeningMs: track.listeningMs,
       normRadius: hasMeasured
         ? normalizedRadius(track.listeningMs, maxTrackMs)
-        : normalizedRadius(apiPop, maxApiTrackPop),
+        : normalizedRadius(apiScore, maxApiTrackScore),
       position,
       parentIds: parent.kind === "album" ? [parent.id, ...parent.parentIds] : parent.id ? [parent.id] : [],
       childIds: [],
@@ -292,6 +312,7 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
         spotifyTrackId: track.spotifyId,
         playRecordCount: track.playRecordCount,
         rankByListening: 0,
+        ...(trackSignal && !hasMeasured ? { apiRank: trackSignal.rank } : {}),
         artworkUrl:
           (track.albumId ? albumNode.get(track.albumId)?.meta.artworkUrl : null) ??
           null,
