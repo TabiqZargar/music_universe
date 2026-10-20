@@ -36,8 +36,14 @@ npm run dev          # http://localhost:3000
 
 Optional Spotify API mode — copy `.env.example` to `.env.local` and set
 `NEXT_PUBLIC_SPOTIFY_CLIENT_ID` (plus `SPOTIFY_CLIENT_SECRET` if you want
-server-side exchange). Add `http://localhost:3000/callback` as a redirect URI
-in your Spotify app.
+server-side exchange). Add `http://127.0.0.1:3000/callback` as a redirect URI
+in your Spotify app and open the app at **http://127.0.0.1:3000** so the
+generated redirect URI matches. Spotify rejects `localhost` redirect URIs —
+use the loopback IP literal:
+
+```bash
+npm run dev -- --hostname 127.0.0.1 --port 3000   # http://127.0.0.1:3000
+```
 
 ### Spotify API prerequisites & limitations
 
@@ -58,7 +64,9 @@ Spotify's Feb 2026 rules shape what API mode can show:
   batch endpoints and search beyond 10 results are not used.
 - Requested scopes stay minimal: `user-read-private`, `user-top-read`,
   `user-read-recently-played`. Redirect URIs must be HTTPS in production;
-  `http://localhost` / loopback is allowed for local development.
+  for local development use a loopback IP literal (`http://127.0.0.1:PORT`) —
+  `localhost` is rejected by Spotify, and loopback ports may be registered
+  dynamically.
 
 ## Scripts
 
