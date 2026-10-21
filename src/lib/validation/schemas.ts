@@ -22,7 +22,9 @@ export const listeningRecordsSchema = z.array(listeningRecordSchema);
 export const extendedHistoryEntrySchema = z
   .object({
     ts: z.string().min(1),
-    ms_played: z.number().int().nonnegative().optional(),
+    // Spotify writes `ms_played` as a float in real Extended Streaming History
+    // exports; the importer rounds to whole milliseconds.
+    ms_played: z.number().nonnegative().optional(),
     master_metadata_track_name: z.string().nullable().optional(),
     master_metadata_album_artist_name: z.string().nullable().optional(),
     master_metadata_album_album_name: z.string().nullable().optional(),

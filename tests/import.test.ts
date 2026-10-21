@@ -158,6 +158,79 @@ describe("parsing rules", () => {
   });
 });
 
+describe("real Extended Streaming History shape", () => {
+  // Spotify's endsong_*.json writes ms_played as a floating-point number; the
+  // importer must round it rather than reject every record as malformed.
+  const FLOAT_MS = JSON.stringify([
+    {
+      ts: "2024-05-01T10:00:00Z",
+      ms_played: 123456.78,
+      master_metadata_track_name: "Float Song",
+      master_metadata_album_artist_name: "Float Artist",
+      master_metadata_album_album_name: "Float Album",
+      spotify_track_uri: "spotify:track:float1",
+    },
+  ]);
+
+  it("imports records whose ms_played is a float and rounds to whole ms", () => {
+    const result = parseHistoryJson(FLOAT_MS, { fileName: "endsong_0.json", batchId: "b" });
+    expect(result.ok).toBe(true);
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0].msPlayed).toBe(123457);
+    expect(result.preview.malformedEntries).toBe(0);
+  });
+
+  it("parses a mixed real file (music + skipped podcast) without losing music", () => {
+    const raw = JSON.stringify([
+      {
+        ts: "2024-05-01T10:00:00Z",
+        ms_played: 0.0,
+        master_metadata_track_name: "Instant Skip",
+        master_metadata_album_artist_name: "Artist",
+        spotify_track_uri: "spotify:track:z1",
+      },
+      {
+        ts: "2024-05-01T10:05:00Z",
+        ms_played: 300000,
+        master_metadata_track_name: null,
+        master_metadata_album_artist_name: null,
+        episode_uri: "spotify:episode:e1",
+        episode_name: "A Podcast",
+      },
+      {
+        ts: "2024-05-01T10:30:00Z",
+        ms_played: 90000.5,
+        master_metadata_track_name: null,
+        master_metadata_album_artist_name: null,
+      },
+    ]);
+    const result = parseHistoryJson(raw, { fileName: "endsong_1.json", batchId: "b" });
+    expect(result.records).toHaveLength(1);
+    expect(result.preview.skippedPodcasts).toBe(1);
+    expect(result.preview.malformedEntries).toBe(1);
+    expect(result.preview.zeroDurationPlays).toBe(1);
+    expect(result.preview.totalListeningMs).toBe(0);
+  });
+});
+
+describe("empty and valueless files", () => {
+  it("reports a clear error for an empty file", () => {
+    const result = parseHistoryJson("", { fileName: "empty.json" });
+    expect(result.ok).toBe(false);
+    expect(result.records).toHaveLength(0);
+    expect(result.errors[0]).toMatch(/not valid json/i);
+  });
+
+  it("flags a file with only podcasts / no music records", () => {
+    const raw = JSON.stringify([
+      { ts: "2024-01-01T00:00:00Z", ms_played: 100, episode_uri: "spotify:episode:x" },
+    ]);
+    const result = parseHistoryJson(raw, { fileName: "podcasts.json" });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => /no music play records/i.test(e))).toBe(true);
+  });
+});
+
 describe("duplicate detection, merge and replace", () => {
   const makeRecord = (over: Partial<ListeningRecord> = {}): ListeningRecord => ({
     trackKey: "c:t|a|b",
@@ -214,6 +287,21 @@ describe("duplicate detection, merge and replace", () => {
     expect(second.importedRecordCount).toBe(0);
     expect(second.batches).toHaveLength(1);
     expect(second.records).toHaveLength(first.records.length);
+  });
+
+  it("marks a file already stored by a prior import as a duplicate in the preview", () => {
+    const { parsed } = previewImportSelection([{ name: "StreamingHistory0.json", text: STREAMING }]);
+    const first = applyImport(parsed, "merge", { records: [], batches: [] });
+    const [storedBatch] = first.batches;
+
+    const known = new Map([[storedBatch.fileHash, storedBatch.fileName]]);
+    const again = previewImportSelection(
+      [{ name: "StreamingHistory0.json", text: STREAMING }],
+      known,
+    );
+    expect(again.parsed[0].preview.duplicateOfFile).toBe("StreamingHistory0.json");
+    expect(again.parsed[0].preview.recordCount).toBe(0);
+    expect(again.parsed[0].records).toHaveLength(0);
   });
 
   it("imports several files at once and stays idempotent across them", () => {

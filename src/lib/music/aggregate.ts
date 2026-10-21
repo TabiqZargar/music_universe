@@ -222,27 +222,35 @@ export function buildGenres(
 ): { genres: Genre[]; artistsWithGenres: Artist[] } {
   const trackById = new Map(tracks.map((t) => [t.id, t]));
   const genreMap = new Map<string, Genre>();
+  const genreMembers = new Map<string, Set<string>>();
   const result: Artist[] = [];
+  const resultById = new Map<string, Artist>();
 
   for (const artist of artists) {
     const names = artist.genres.length > 0 ? artist.genres : [unclassifiedLabel];
     const updated: Artist = { ...artist, genres: names };
     result.push(updated);
+    resultById.set(updated.id, updated);
     for (const name of names) {
       const id = genreId(name);
       let genre = genreMap.get(id);
       if (!genre) {
         genre = { id, name, artistIds: [], listeningMs: 0 };
         genreMap.set(id, genre);
+        genreMembers.set(id, new Set());
       }
-      if (!genre.artistIds.includes(updated.id)) genre.artistIds.push(updated.id);
+      const members = genreMembers.get(id)!;
+      if (!members.has(updated.id)) {
+        members.add(updated.id);
+        genre.artistIds.push(updated.id);
+      }
     }
   }
 
   for (const genre of genreMap.values()) {
     const credited = new Set<string>();
     for (const artistId of genre.artistIds) {
-      const artist = result.find((a) => a.id === artistId);
+      const artist = resultById.get(artistId);
       if (!artist) continue;
       for (const trackId of artist.trackIds) {
         credited.add(trackId);

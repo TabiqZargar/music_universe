@@ -104,6 +104,13 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
   const shellRadius = 46;
   const sortedGenres = [...genres].sort((a, b) => a.id.localeCompare(b.id));
   const artistGenre = new Map<string, string[]>();
+  // Precomputed once instead of scanning every album/track per artist below —
+  // keeps layout linear in the number of entities for large histories.
+  const artistsWithGenresById = new Map(artistsWithGenres.map((a) => [a.id, a]));
+  const trackIdsOnAnyAlbum = new Set<string>();
+  for (const album of allAlbums) {
+    for (const trackId of album.trackIds) trackIdsOnAnyAlbum.add(trackId);
+  }
   for (const g of sortedGenres) {
     for (const artistId of g.artistIds) {
       const list = artistGenre.get(artistId) ?? [];
@@ -137,7 +144,7 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
       genreIds: [genre.id],
       meta: {
         artistCount: genre.artistIds.length,
-        trackCount: countTracksForGenre(genre.artistIds, artistsWithGenres),
+        trackCount: countTracksForGenre(genre.artistIds, artistsWithGenresById),
         genres: [genre.name],
       },
     });
@@ -183,7 +190,7 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
         : normalizedRadius(apiScore, maxApiArtistScore),
       position,
       parentIds: genreIds,
-      childIds: [...artist.albumIds, ...artist.trackIds.filter((t) => !allAlbums.some((al) => al.trackIds.includes(t)))],
+      childIds: [...artist.albumIds, ...artist.trackIds.filter((t) => !trackIdsOnAnyAlbum.has(t))],
       genreIds,
       meta: {
         trackIds: [...artist.trackIds].sort(),
@@ -273,12 +280,14 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
     (a, b) => b.listeningMs - a.listeningMs || a.id.localeCompare(b.id),
   );
   const trackNode = new Map<string, GraphNode>();
+  const albumsById = new Map(allAlbums.map((a) => [a.id, a]));
+  const artistNodeList = [...artistNodeById.values()];
   for (const track of sortedTracks) {
     const album = track.albumId ? albumNode.get(track.albumId) : undefined;
     const parent =
       album ??
       artistNodeById.get(track.artistIds[0]) ??
-      [...artistNodeById.values()].find((a) => track.artistIds.includes(a.id));
+      artistNodeList.find((a) => track.artistIds.includes(a.id));
     if (!parent) continue;
     const rand = seededRandom(`track:${track.id}`);
     const angle = rand() * Math.PI * 2;
@@ -307,7 +316,7 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
         artistNames: track.artistIds
           .map((id) => artistNodeById.get(id)?.label)
           .filter((n): n is string => Boolean(n)),
-        albumName: track.albumId ? allAlbums.find((a) => a.id === track.albumId)?.name ?? null : null,
+        albumName: track.albumId ? albumsById.get(track.albumId)?.name ?? null : null,
         albumId: track.albumId,
         spotifyTrackId: track.spotifyId,
         playRecordCount: track.playRecordCount,
@@ -358,11 +367,11 @@ export function buildMusicGraph(input: BuildGraphInput): MusicGraph {
 
 function countTracksForGenre(
   artistIds: string[],
-  artists: { id: string; trackIds: string[] }[],
+  artists: Map<string, { id: string; trackIds: string[] }>,
 ): number {
   const set = new Set<string>();
   for (const id of artistIds) {
-    const artist = artists.find((a) => a.id === id);
+    const artist = artists.get(id);
     if (artist) for (const t of artist.trackIds) set.add(t);
   }
   return set.size;

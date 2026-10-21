@@ -272,6 +272,93 @@ test("combined mode enriches imports without double-counting listening time", as
   await expect(page.getByTestId("stat-total")).toHaveText(importedTotal.trim());
 });
 
+test("re-importing the same history through the UI adds nothing", async ({ page }) => {
+  await page.goto("/");
+  await importFixture(page, GOOD_FIXTURE);
+  await page.getByTestId("import-merge").click();
+  await expect(page.getByTestId("import-summary")).toBeVisible();
+  await page.getByTestId("import-done").click();
+  await expect(page.getByRole("heading", { name: "My Listening History" })).toBeVisible();
+  const totalAfterFirst = (await page.getByTestId("stat-total").textContent()) ?? "";
+  const tracksAfterFirst = await page.getByTestId("stat-tracks").textContent();
+
+  // Same file again: it is detected as a duplicate and contributes no records.
+  await importFixture(page, GOOD_FIXTURE);
+  await expect(page.getByTestId("import-preview-file")).toContainText("Duplicate");
+  await expect(page.getByTestId("import-merge")).toBeDisabled();
+  await page.getByTestId("close-import").click();
+
+  await expect(page.getByTestId("stat-total")).toHaveText(totalAfterFirst.trim());
+  await expect(page.getByTestId("stat-tracks")).toHaveText(tracksAfterFirst ?? "8");
+});
+
+test("combined mode labels measured vs ranking metrics without double-counting", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await importFixture(page, GOOD_FIXTURE);
+  await page.getByTestId("import-merge").click();
+  await page.getByTestId("import-done").click();
+  await expect(page.getByRole("heading", { name: "My Listening History" })).toBeVisible();
+  const importedTotal = (await page.getByTestId("stat-total").textContent()) ?? "";
+
+  await context.addInitScript(
+    ([key, token]) => {
+      window.sessionStorage.setItem(
+        key,
+        JSON.stringify({
+          accessToken: token,
+          refreshToken: null,
+          expiresAtMs: Date.now() + 3_600_000,
+          scopes: ["user-read-private", "user-top-read", "user-read-recently-played"],
+        }),
+      );
+    },
+    [TOKENS_KEY, "e2e-token"] as const,
+  );
+  const paging = (items: unknown[]) => ({ items, next: null, total: items.length });
+  // API returns an artist that does NOT appear in the import and one that does.
+  await page.route("**/api.spotify.com/v1/me/top/artists**", (route) =>
+    route.fulfill({
+      json: paging([
+        { id: "artist-1", name: "Wren Calloway", genres: ["mockwave"] },
+        { id: "artist-2", name: "API Only Artist", genres: ["mockwave"] },
+      ]),
+    }),
+  );
+  await page.route("**/api.spotify.com/v1/me/top/tracks**", (route) =>
+    route.fulfill({ json: paging([{ id: "track-1", name: "Mock", artists: [{ name: "Wren Calloway" }] }]) }),
+  );
+  await page.route("**/api.spotify.com/v1/me/player/recently-played**", (route) =>
+    route.fulfill({ json: paging([]) }),
+  );
+  await page.route("**/api.spotify.com/v1/me", (route) =>
+    route.fulfill({ json: { id: "e2e-user", display_name: "E2E Listener", images: [] } }),
+  );
+  await page.route("**/api/spotify/token", (route) =>
+    route.fulfill({ json: { access_token: "e2e-token", token_type: "Bearer", expires_in: 3600 } }),
+  );
+
+  await page.reload();
+  await expect(page.getByTestId("source-badge")).toHaveText(/imported \+ spotify api/i, {
+    timeout: 15_000,
+  });
+  // Measured total comes only from records; API rankings never inflate it.
+  await expect(page.getByTestId("stat-total")).toHaveText(importedTotal.trim());
+
+  // Enriched imported artist: measured listening, Spotify genres applied.
+  await page.getByTestId("search-input").fill("Wren Calloway");
+  await page.getByTestId("search-results").getByText("Wren Calloway").click();
+  const detail = page.getByTestId("detail-panel");
+  await expect(detail).toContainText("Wren Calloway");
+  await expect(detail.getByTestId("detail-listening")).not.toContainText("not measured");
+
+  // An API-only artist is not injected as a fake play in combined mode.
+  await page.getByTestId("search-input").fill("API Only Artist");
+  await expect(page.getByTestId("search-results").getByText("API Only Artist")).toHaveCount(0);
+});
+
 test("connection panel explains the unconfigured API mode", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("open-connection").click();

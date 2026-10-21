@@ -68,14 +68,22 @@ export interface ParsedImport extends ImportResult {
  * Parse every file in the selection and mark content-identical files
  * (same export uploaded twice, or the same file picked twice) as duplicates
  * of the first occurrence — they contribute no extra records.
+ *
+ * `knownFileHashes` maps a hash already stored in the dataset (from a prior
+ * import) to its original file name. Files matching a stored hash are shown as
+ * duplicates in the preview instead of a misleading full record count, so the
+ * "already imported" state is visible before the user commits.
  */
-export function previewImportSelection(files: RawImportFile[]): {
+export function previewImportSelection(
+  files: RawImportFile[],
+  knownFileHashes: ReadonlyMap<string, string> = new Map(),
+): {
   parsed: ParsedImport[];
   errors: string[];
 } {
   const errors: string[] = [];
   const parsed: ParsedImport[] = [];
-  const seenHashes = new Map<string, string>();
+  const seenHashes = new Map<string, string>(knownFileHashes);
 
   for (const file of files) {
     const fileHash = hashContent(file.text);

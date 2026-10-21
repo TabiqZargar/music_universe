@@ -489,7 +489,10 @@ export function UniverseProvider({ children }: { children: ReactNode }) {
       });
       return;
     }
-    const { parsed, errors: parseErrors } = previewImportSelection(jsons);
+    const knownHashes = new Map(
+      (dataset.kind === "imported" ? dataset.batches : []).map((b) => [b.fileHash, b.fileName]),
+    );
+    const { parsed, errors: parseErrors } = previewImportSelection(jsons, knownHashes);
     setImportSession({
       step: "preview",
       parsed,
@@ -497,7 +500,7 @@ export function UniverseProvider({ children }: { children: ReactNode }) {
       skippedZipEntries,
       summary: null,
     });
-  }, []);
+  }, [dataset]);
 
   const commitImport = useCallback(
     async (mode: ImportMode) => {
