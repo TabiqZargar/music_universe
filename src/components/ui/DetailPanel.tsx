@@ -192,7 +192,9 @@ export function DetailPanel({
               {boot.warning ??
                 (hasMeasuredListening
                   ? "Listening totals come from your imported history. Nodes sit in stable genre regions; size reflects listening time in the active timeframe."
-                  : "Spotify ranking data drives sizes here — listening totals need a history import. Connect Spotify and import your data for real listening time.")}
+                  : source.kind === "demo"
+                    ? "Demo data shown. Import your Spotify Extended Streaming History (JSON or ZIP) to see your real listening totals. Download requests can take days and may require multiple files."
+                    : "Spotify ranking data drives sizes here — listening totals need a history import. Request your Extended Streaming History from Spotify Privacy settings and import the JSON files to see measured listening time.")}
             </p>
             {source.batches.length > 0 && (
               <p className="mt-1 text-slate-500">

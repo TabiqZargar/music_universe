@@ -85,8 +85,10 @@ export function SceneStage({ onOpenImport }: { onOpenImport: () => void }) {
             </h2>
             <p className="text-sm leading-relaxed text-slate-400">
               Every node is hidden by the current filters or timeframe. Loosen
-              the filters, switch the timeframe, or import your history to fill
-              the universe.
+              the filters or switch the timeframe. To see your real listening
+              history, import Spotify Extended Streaming History (JSON or ZIP) —
+              request it from Spotify Privacy settings if you haven&apos;t already
+              (downloads can take days).
             </p>
             <button
               type="button"

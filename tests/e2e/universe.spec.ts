@@ -359,12 +359,26 @@ test("combined mode labels measured vs ranking metrics without double-counting",
   await expect(page.getByTestId("search-results").getByText("API Only Artist")).toHaveCount(0);
 });
 
-test("connection panel explains the unconfigured API mode", async ({ page }) => {
+test("connection panel explains the unconfigured API mode honestly", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("open-connection").click();
-  await expect(page.getByTestId("connection-panel")).toContainText("developer.spotify.com");
+  const panel = page.getByTestId("connection-panel");
+  await expect(panel).toContainText("developer.spotify.com");
+  await expect(panel).toContainText("Availability notes");
+  await expect(panel).toContainText(/Free accounts|Development Mode/i);
+  await expect(panel).toContainText(/import/i);
   await page.getByTestId("close-connection").click();
   await expect(page.getByTestId("connection-panel")).toBeHidden();
+});
+
+test("import dialog links to Spotify's data download flow", async ({ page }) => {
+  await page.goto("/");
+  await openImportDialog(page);
+  await page.getByRole("button", { name: /How to get your data/i }).click();
+  const dialog = page.getByTestId("import-dialog");
+  await expect(dialog).toContainText(/Download your data/i);
+  await expect(dialog).toContainText(/Extended streaming history/i);
+  await expect(dialog).toContainText(/take days/i);
 });
 
 test("Escape closes dialogs and panels", async ({ page }) => {

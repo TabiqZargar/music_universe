@@ -543,7 +543,7 @@ export function UniverseProvider({ children }: { children: ReactNode }) {
           zeroDurationPlays: importSession.parsed.reduce((s, p) => s + p.preview.zeroDurationPlays, 0),
           duplicateFiles: importSession.parsed.filter((p) => p.preview.duplicateOfFile !== null).length,
           totalRecords: applied.records.length,
-          measuredListeningMs: importSession.parsed.reduce((s, p) => s + p.preview.totalListeningMs, 0),
+          measuredListeningMs: applied.records.reduce((s, r) => s + r.msPlayed, 0),
         },
       });
     },

@@ -34,6 +34,22 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
+### Import-first (no Spotify API needed)
+
+The app works fully offline. To see your real listening history:
+
+1. Request your data from Spotify: **Account → Privacy → Download your data**
+   and select **Extended streaming history**. Spotify does **not** provide an
+   instant or guaranteed download — requests can take several days and arrive
+   by email.
+2. Import the JSON files (or the ZIP that contains them) via the **Import**
+   button. You may need **multiple** files across the archive
+   (`StreamingHistory*.json`, `endsong_*.json`).
+3. Re-importing is safe: identical files and overlapping plays are deduplicated,
+   so importing extra files never inflates your totals.
+
+The demo universe stays available for exploration even without an export.
+
 Optional Spotify API mode — copy `.env.example` to `.env.local` and set
 `NEXT_PUBLIC_SPOTIFY_CLIENT_ID` (plus `SPOTIFY_CLIENT_SECRET` if you want
 server-side exchange). Add `http://127.0.0.1:3000/callback` as a redirect URI
@@ -67,6 +83,11 @@ Spotify's Feb 2026 rules shape what API mode can show:
   for local development use a loopback IP literal (`http://127.0.0.1:PORT`) —
   `localhost` is rejected by Spotify, and loopback ports may be registered
   dynamically.
+- **The Web API may simply be unavailable to you.** Spotify can disable or
+  omit Web API access for Free accounts, and dashboard options may be missing
+  or disabled for other account/region reasons. That is outside this app's
+  control and does not block import mode — the connection panel says so
+  explicitly rather than treating it as a bug or fabricating data.
 
 ## Scripts
 

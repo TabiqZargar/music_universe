@@ -9,7 +9,9 @@ import {
   applyImport,
   dedupeRecords,
   previewImportSelection,
+  readImportFiles,
 } from "@/lib/import";
+import JSZip from "jszip";
 import { parseHistoryJson, parseTimestamp } from "@/lib/import/parse";
 import { detectFormat } from "@/lib/import/detect";
 import type { ListeningRecord } from "@/types/domain";
@@ -329,6 +331,33 @@ describe("duplicate detection, merge and replace", () => {
     const b = makeRecord();
     const c = makeRecord({ msPlayed: 999 });
     expect(dedupeRecords([a, b, c])).toHaveLength(2);
+  });
+});
+
+describe("zip reading feedback", () => {
+  it("reads history JSON from a ZIP and reports unrelated entries as skipped", async () => {
+    const zip = new JSZip();
+    zip.file("Spotify Account Data/StreamingHistory0.json", STREAMING);
+    zip.file("Spotify Account Data/readme.txt", "not json");
+    zip.file("Spotify Account Data/manifest.json", JSON.stringify({ files: [] }));
+    const buffer = await zip.generateAsync({ type: "arraybuffer" });
+    const file = new File([buffer], "my_spotify_data.zip", {
+      type: "application/zip",
+    });
+
+    const { jsons, skippedZipEntries, errors } = await readImportFiles([file]);
+    expect(errors).toHaveLength(0);
+    expect(jsons.map((j) => j.name)).toEqual(["StreamingHistory0.json"]);
+    expect(skippedZipEntries).toEqual(
+      expect.arrayContaining(["Spotify Account Data/readme.txt", "Spotify Account Data/manifest.json"]),
+    );
+  });
+
+  it("reports unsupported top-level file types without throwing", async () => {
+    const file = new File(["hello"], "notes.csv", { type: "text/csv" });
+    const { jsons, errors } = await readImportFiles([file]);
+    expect(jsons).toHaveLength(0);
+    expect(errors[0]).toMatch(/unsupported file type/i);
   });
 });
 

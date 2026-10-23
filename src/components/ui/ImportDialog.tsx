@@ -129,10 +129,24 @@ export function ImportDialog({
                 onClick={() => setHelpOpen((v) => !v)}
                 aria-expanded={helpOpen}
               >
-                {helpOpen ? "▾" : "▸"} What files are supported?
+                {helpOpen ? "▾" : "▸"} How to get your data &amp; supported files
               </button>
               {helpOpen && (
                 <div className="rounded-lg border border-white/10 bg-black/25 p-3 text-[11px] leading-relaxed text-slate-400">
+                  <p className="mb-1.5">
+                    <span className={LABEL}>Request your export</span>
+                  </p>
+                  <ol className="mb-2 list-inside list-decimal space-y-0.5">
+                    <li>
+                      Go to Spotify&apos;s <span className="text-cyan-300">Account &gt; Privacy &gt; Download your data</span>.
+                    </li>
+                    <li>
+                      Request <span className="text-violet-300">Extended streaming history</span> (not just the &quot;Account data&quot; summary). Downloads are not instant and may take days.
+                    </li>
+                    <li>
+                      When you receive the email, download the ZIP/files and import them here. You may need multiple JSON files across the archive.
+                    </li>
+                  </ol>
                   <p className="mb-1.5">
                     <span className={LABEL}>Accepted files</span>
                   </p>
@@ -143,18 +157,20 @@ export function ImportDialog({
                     </li>
                     <li>
                       <code className="text-violet-300">endsong_*.json</code> — newer
-                      export format
+                      Extended Streaming History format
                     </li>
                     <li>
                       A <code className="text-violet-300">.zip</code> containing
-                      either of the above
+                      one or more of the above (we only parse likely history JSON files)
                     </li>
                   </ul>
                   <p>
                     Fields used: track name, artist name(s), album name, ms played,
-                    end timestamp, Spotify track id. Podcast episodes are skipped;
-                    negative durations are flagged as malformed. Nothing is uploaded
-                    anywhere.
+                    timestamps. Podcast episodes are skipped; zero-duration plays are
+                    counted but flagged; negative/malformed durations are flagged as
+                    malformed (not clamped). Duplicates and partial overlaps are
+                    deduplicated safely. Nothing is uploaded anywhere — all parsing and
+                    storage stay on this device.
                   </p>
                 </div>
               )}
@@ -234,6 +250,22 @@ export function ImportDialog({
                   <li key={error}>{error}</li>
                 ))}
               </ul>
+            )}
+
+            {importSession.skippedZipEntries.length > 0 && (
+              <p
+                className="rounded-lg border border-white/10 bg-black/25 p-3 text-[11px] leading-relaxed text-slate-400"
+                data-testid="import-skipped-zip"
+              >
+                Skipped {formatCount(importSession.skippedZipEntries.length)}{" "}
+                unrelated file
+                {importSession.skippedZipEntries.length === 1 ? "" : "s"} inside the
+                ZIP (not streaming-history JSON):{" "}
+                <span className="text-slate-500">
+                  {importSession.skippedZipEntries.slice(0, 3).join(", ")}
+                  {importSession.skippedZipEntries.length > 3 ? ", …" : ""}
+                </span>
+              </p>
             )}
 
             {!hasMeasuredListening && (

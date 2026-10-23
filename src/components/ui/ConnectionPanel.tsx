@@ -41,19 +41,37 @@ export function ConnectionPanel({
         {!configured && (
           <>
             <p className="text-xs leading-relaxed text-slate-300">
-              API mode is not configured. Create an app at{" "}
-              <span className="text-cyan-300">developer.spotify.com</span>, add a
-              redirect URI for <code className="text-violet-300">/callback</code>,
-              then set:
+              Spotify Web API access is not configured in this environment. You can
+              still explore the demo universe or import your Extended Streaming
+              History below.
             </p>
-            <pre className="overflow-x-auto rounded-lg border border-white/10 bg-black/35 p-3 text-[11px] leading-relaxed text-slate-400">
-{`NEXT_PUBLIC_SPOTIFY_CLIENT_ID=your_client_id
-# optional server-side, for token exchange:
-SPOTIFY_CLIENT_SECRET=your_client_secret`}
-            </pre>
+            <div className="flex flex-col gap-1.5 rounded-lg border border-white/10 bg-black/25 p-3 text-[11px] leading-relaxed text-slate-400">
+              <p>
+                <span className={LABEL}>If you want to enable it</span>
+              </p>
+              <p>
+                Create an app at{" "}
+                <span className="text-cyan-300">developer.spotify.com</span>. Add the
+                exact redirect URI for your origin (e.g.{" "}
+                <code className="text-violet-300">http://127.0.0.1:3000/callback</code>)
+                — Spotify rejects <code>localhost</code>. Set{" "}
+                <code className="text-violet-300">NEXT_PUBLIC_SPOTIFY_CLIENT_ID</code>{" "}
+                in <code className="text-violet-300">.env.local</code>{" "}
+                (<code className="text-violet-300">SPOTIFY_CLIENT_SECRET</code> is
+                optional for PKCE).
+              </p>
+              <p>
+                <span className="text-slate-300">Availability notes:</span> New apps may
+                be in Development Mode (limited authorized users; the account owner may
+                need Premium depending on Spotify&apos;s current rules), and the Web API
+                can be unavailable for Free accounts or in some regions — a disabled or
+                restricted option in the dashboard doesn&apos;t mean this app is broken.
+                API rankings never replace measured listening history.
+              </p>
+            </div>
             <p className="text-[11px] text-slate-500">
-              Without a secret, the token exchange runs without a client secret
-              (PKCE public client).
+              No credentials are stored in this panel; tokens are only used if you
+              connect and are kept in this tab&apos;s session storage.
             </p>
           </>
         )}

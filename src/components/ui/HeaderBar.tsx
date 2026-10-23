@@ -66,6 +66,11 @@ export function HeaderBar({
             Saved on this device
           </span>
         )}
+        {source.kind === "demo" && (
+          <span className="text-[11px] text-slate-500">
+            Demo data — import your history or connect to explore your own
+          </span>
+        )}
         {source.kind === "spotify-api" && (
           <span className="text-[11px] text-slate-500">
             Sized by Spotify rankings, not listening time
