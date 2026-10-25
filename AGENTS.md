@@ -36,7 +36,7 @@ npm run test:e2e   # Playwright (chromium); starts dev server on port 3100
   positions from listening values or record order — sizes (`normRadius`) are
   the only data-driven visual.
 - Listening totals come only from measured records (import/demo). API mode
-  sizes by Spotify popularity and must report total time as *unavailable*
+  sizes by Spotify popularity and must report total time as _unavailable_
   (`hasMeasuredListening === false`), never a fabricated number. API data must
   not be added to imported listening totals (enrichment-only in combined mode).
 - Artist listening = full track time per credited artist (overlaps are
@@ -72,5 +72,5 @@ npm run test:e2e   # Playwright (chromium); starts dev server on port 3100
   for API mode). Scopes in `src/lib/spotify/scopes.ts` — keep to the minimum
   read-only set.
 - API client (`src/lib/spotify/api.ts`) handles 429 + `Retry-After` and
-  pagination; OAuth failures surface through `sessionStorage` key
+  pagination; OAuth failures surface through `sessionStorage` key,
   `mu:spotify-error` read at boot.
