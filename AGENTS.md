@@ -62,7 +62,7 @@ npm run test:e2e   # Playwright (chromium); starts dev server on port 3100
   and `SceneStage` use lazy `useState` initializers — the lint config
   (`react-hooks/set-state-in-effect`) forbids sync setState in effects.
 - `src/app/callback/page.tsx` wraps `use(searchParams)` in `<Suspense>` —
-  required for prerender under `cacheComponents`.
+  required for prerender under `cacheComponents`..
 
 ### Spotify integration
 
